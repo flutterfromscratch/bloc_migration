@@ -12,31 +12,35 @@ part 'home_state.dart';
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final FakeNetworkService _fakeNetworkService;
 
-  HomeBloc(this._fakeNetworkService) : super(HomeInitial());
+  HomeBloc(this._fakeNetworkService) : super(HomeInitial()) {
+    on<LoadHomeEvent>(
+      (event, emit) => emit(
+        HomeLoadedState(),
+      ),
+    );
 
-  @override
-  Stream<HomeState> mapEventToState(event) async* {
-    if (event is LoadHomeEvent) {
-      yield HomeLoadedState();
-    }
-    if (event is RunLongRunningEvent) {
-      yield HomeLoadingState('Running long running operation....');
+    on<RunLongRunningEvent>((event, emit) async {
+      emit(HomeLoadingState('Running long running operation...'));
       final response = await _fakeNetworkService.longRunningOperation();
-      yield HomeLoadingState(response);
+      emit(HomeLoadingState(response));
       await Future.delayed(Duration(seconds: 2));
-      yield HomeLoadedState();
-    }
-    if (event is RunLongRunningStreamedEvent) {
-      yield HomeLoadingState('Running long running streamed operation....');
-      yield* _fakeNetworkService.longRunningStream().map((event) => HomeLoadingState(event));
-      yield HomeLoadedState();
-    }
-    if (event is RunLongRunningStreamedComplexEvent) {
-      yield HomeLoadingState('Running long running streamed operation with complex objects....');
-      yield* _fakeNetworkService.longRunningComplexStream().map(
-            (event) => HomeLoadingState(event.message, icon: event.icon),
-          );
-      yield HomeLoadedState();
-    }
+      emit(HomeLoadedState());
+    });
+
+    on<RunLongRunningStreamedEvent>((event, emit) async {
+      emit(HomeLoadingState('Running long running streamed operation...'));
+      await for (final result in _fakeNetworkService.longRunningStream()) {
+        emit(HomeLoadingState(result));
+      }
+      emit(HomeLoadedState());
+    });
+
+    on<RunLongRunningStreamedComplexEvent>((event, emit) async {
+      emit(HomeLoadingState('Running long running streamed complex operation...'));
+      await for (final result in _fakeNetworkService.longRunningComplexStream()) {
+        emit(HomeLoadingState(result.message, icon: result.icon));
+      }
+      emit(HomeLoadedState());
+    });
   }
 }
